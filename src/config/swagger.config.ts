@@ -1,12 +1,12 @@
-// @ts-nocheck
-
 /**
  * Swagger/OpenAPI Configuration
  * Sets up comprehensive API documentation with Swagger UI
  */
 
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, Logger } from '@nestjs/common';
+
+const logger = new Logger('Swagger');
 
 export function setupSwagger(app: INestApplication): void {
   const config = new DocumentBuilder()
@@ -113,7 +113,7 @@ export function setupSwagger(app: INestApplication): void {
     ],
   });
 
-  console.log('✅ Swagger UI available at http://localhost:3000/api/docs');
+  logger.log('✅ Swagger UI available at http://localhost:3000/api/docs');
 }
 
 /**
@@ -137,5 +137,5 @@ export function setupOpenAPIEndpoint(app: INestApplication): void {
   const document = SwaggerModule.createDocument(app, config);
 
   // Store document in app for access via endpoint
-  (app as any).openAPIDocument = document;
+  (app as unknown as Record<string, unknown>).openAPIDocument = document;
 }

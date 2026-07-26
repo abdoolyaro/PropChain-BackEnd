@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../database/prisma.service';
@@ -79,7 +77,7 @@ export class DashboardService {
     });
 
     const totalProperties = properties.length;
-    const activeListings = properties.filter((p: any) => p.status === 'ACTIVE').length;
+    const activeListings = properties.filter((p) => p.status === 'ACTIVE').length;
 
     // Get user's transactions (both as buyer and seller)
     const buyerTransactions = await this.prisma.transaction.findMany({
@@ -195,7 +193,7 @@ export class DashboardService {
         take: limit,
       });
 
-      return recommendations.map((prop: any) => ({
+      return recommendations.map((prop) => ({
         id: prop.id,
         title: prop.title,
         address: prop.address,
@@ -214,7 +212,7 @@ export class DashboardService {
       where: {
         status: 'ACTIVE',
         ownerId: { not: userId },
-        OR: userProperties.map((prop: any) => ({
+        OR: userProperties.map((prop) => ({
           AND: [
             { city: prop.city },
             { state: prop.state },
@@ -226,7 +224,7 @@ export class DashboardService {
       take: limit,
     });
 
-    return similarProperties.map((prop: any) => ({
+    return similarProperties.map((prop) => ({
       id: prop.id,
       title: prop.title,
       address: prop.address,

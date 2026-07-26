@@ -1,4 +1,4 @@
-// @ts-nocheck
+/* eslint-disable @typescript-eslint/no-explicit-any -- TODO #891: eliminate any from this file */
 
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { PropertyComparisonService } from './property-comparison.service';

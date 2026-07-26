@@ -1,4 +1,4 @@
-// @ts-nocheck
+/* eslint-disable @typescript-eslint/no-explicit-any -- TODO #891: eliminate any from this file */
 
 import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import { PROPERTY_STATUS_ENUM } from './property.dto';

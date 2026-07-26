@@ -44,6 +44,11 @@ import {
   TransactionAnalyticsGranularity,
   TransactionAnalyticsQueryDto,
 } from './dto/transaction.dto';
+import {
+  BlockchainTransactionDto,
+  BlockchainVerificationResultDto,
+  GetBlockchainStatsDto,
+} from '../blockchain/dto/blockchain.dto';
 
 @ApiTags('Transactions')
 @Controller('transactions')
@@ -210,7 +215,7 @@ export class TransactionsController {
   async recordOnBlockchain(
     @Param('id') id: string,
     @Body() dto: RecordTransactionOnChainDto,
-  ): Promise<any> {
+  ): Promise<{ transaction: TransactionResponseDto; blockchain: BlockchainTransactionDto }> {
     return this.transactionsService.recordOnBlockchain(id, dto);
   }
 
@@ -238,7 +243,7 @@ export class TransactionsController {
   })
   @ApiResponse({ status: 404, description: 'Transaction not found' })
   @ApiResponse({ status: 400, description: 'Transaction not recorded on blockchain' })
-  async verifyOnBlockchain(@Param('id') id: string): Promise<any> {
+  async verifyOnBlockchain(@Param('id') id: string): Promise<BlockchainVerificationResultDto> {
     return this.transactionsService.verifyOnBlockchain(id);
   }
 
@@ -263,7 +268,7 @@ export class TransactionsController {
       },
     },
   })
-  async getBlockchainStats(): Promise<any> {
+  async getBlockchainStats(): Promise<GetBlockchainStatsDto> {
     return this.transactionsService.getBlockchainStats();
   }
 

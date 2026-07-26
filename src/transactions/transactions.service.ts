@@ -1,8 +1,10 @@
-// @ts-nocheck
-
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { BlockchainService } from '../blockchain/blockchain.service';
+import {
+  BlockchainTransactionDto,
+  BlockchainVerificationResultDto,
+} from '../blockchain/dto/blockchain.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CommissionsService } from '../commissions/commissions.service';
 import { TransactionFeesService } from './transaction-fees.service';
@@ -21,6 +23,7 @@ import {
   TransactionAnalyticsDto,
   TransactionAnalyticsGranularity,
   TransactionAnalyticsQueryDto,
+  UpdateEscrowDto,
 } from './dto/transaction.dto';
 
 @Injectable()
@@ -67,10 +70,10 @@ export class TransactionsService {
           buyerId: dto.buyerId,
           sellerId: dto.sellerId,
           amount: dto.amount,
-          type: dto.type as any,
+          type: dto.type as TransactionTypeDto,
           status: 'PENDING',
           notes: dto.notes,
-          feeBreakdown: feeBreakdown as any,
+          feeBreakdown: feeBreakdown as unknown as Record<string, number>,
         },
       });
 
@@ -93,7 +96,7 @@ export class TransactionsService {
       const limit = query.limit ?? 20;
       const skip = (page - 1) * limit;
 
-      const where: any = {};
+      const where: Record<string, unknown> = {};
       if (query.propertyId) where.propertyId = query.propertyId;
       if (query.buyerId) where.buyerId = query.buyerId;
       if (query.sellerId) where.sellerId = query.sellerId;
@@ -119,7 +122,7 @@ export class TransactionsService {
         total,
         page,
         limit,
-        items: transactions.map((t: any) => this.toResponseDto(t)),
+        items: transactions.map((t) => this.toResponseDto(t)),
       };
     } catch (error) {
       this.logger.error(`Failed to list transactions: ${error.message}`, error.stack);
@@ -168,7 +171,7 @@ export class TransactionsService {
       const updated = await this.prisma.transaction.update({
         where: { id },
         data: {
-          status: dto.status as any,
+          status: dto.status as unknown as import('@prisma/client').TransactionStatus,
           notes: dto.notes,
         },
       });
@@ -188,7 +191,10 @@ export class TransactionsService {
   /**
    * Record transaction on blockchain
    */
-  async recordOnBlockchain(id: string, dto: RecordTransactionOnChainDto): Promise<any> {
+  async recordOnBlockchain(
+    id: string,
+    dto: RecordTransactionOnChainDto,
+  ): Promise<{ transaction: TransactionResponseDto; blockchain: BlockchainTransactionDto }> {
     try {
       const transaction = await this.prisma.transaction.findUnique({
         where: { id },
@@ -262,7 +268,7 @@ export class TransactionsService {
   /**
    * Verify transaction on blockchain
    */
-  async verifyOnBlockchain(id: string): Promise<any> {
+  async verifyOnBlockchain(id: string): Promise<BlockchainVerificationResultDto> {
     try {
       const transaction = await this.prisma.transaction.findUnique({
         where: { id },
@@ -314,7 +320,10 @@ export class TransactionsService {
    * Get transaction analytics for operational dashboards.
    */
   async getAnalytics(query: TransactionAnalyticsQueryDto = {}): Promise<TransactionAnalyticsDto> {
-    const where: Record<string, any> = {};
+    const where: {
+      type?: import('@prisma/client').TransactionType;
+      createdAt?: { gte?: Date; lte?: Date };
+    } = {};
     const maxDays = query.maxDays ?? 365;
 
     if (query.startDate && query.endDate) {
@@ -329,7 +338,7 @@ export class TransactionsService {
     }
 
     if (query.type) {
-      where.type = query.type;
+      where.type = query.type as unknown as import('@prisma/client').TransactionType;
     }
 
     if (query.startDate || query.endDate) {
@@ -359,17 +368,17 @@ export class TransactionsService {
     });
 
     const totalTransactions = transactions.length;
-    const completedTransactions = transactions.filter((t: any) => t.status === 'COMPLETED');
-    const pendingTransactions = transactions.filter((t: any) => t.status === 'PENDING').length;
-    const cancelledTransactions = transactions.filter((t: any) => t.status === 'CANCELLED').length;
+    const completedTransactions = transactions.filter((t) => t.status === 'COMPLETED');
+    const pendingTransactions = transactions.filter((t) => t.status === 'PENDING').length;
+    const cancelledTransactions = transactions.filter((t) => t.status === 'CANCELLED').length;
 
     const totalVolume = this.roundCurrency(
-      transactions.reduce((sum: number, transaction: any) => {
+      transactions.reduce((sum: number, transaction) => {
         return sum + this.toNumber(transaction.amount);
       }, 0),
     );
     const revenue = this.roundCurrency(
-      completedTransactions.reduce((sum: number, transaction: any) => {
+      completedTransactions.reduce((sum: number, transaction) => {
         return sum + this.toNumber(transaction.amount);
       }, 0),
     );
@@ -421,7 +430,7 @@ export class TransactionsService {
 
       const updated = await this.prisma.transaction.update({
         where: { id: transactionId },
-        data: { status: status as any },
+        data: { status: status as unknown as import('@prisma/client').TransactionStatus },
       });
 
       // Audit log the transition (#557)
@@ -458,7 +467,7 @@ export class TransactionsService {
       type: string;
     },
     user: { sub: string; email: string; role: string; type: string },
-  ): Promise<any> {
+  ): Promise<TransactionResponseDto> {
     const [property, buyer, seller] = await Promise.all([
       this.prisma.property.findUnique({ where: { id: dto.propertyId } }),
       this.prisma.user.findUnique({ where: { id: dto.buyerId } }),
@@ -475,7 +484,7 @@ export class TransactionsService {
         buyerId: dto.buyerId,
         sellerId: dto.sellerId,
         amount: dto.amount,
-        type: dto.type as any,
+        type: dto.type as TransactionTypeDto,
         status: 'PENDING',
       },
       include: {
@@ -488,7 +497,7 @@ export class TransactionsService {
     await this.commissionsService.createCommissionsForTransaction(transaction.id);
 
     this.logger.log(`Transaction created via createTransaction: ${transaction.id}`);
-    return transaction;
+    return this.toResponseDto(transaction);
   }
 
   /**
@@ -500,10 +509,10 @@ export class TransactionsService {
       strategyType: string;
       estimatedTaxRate?: number;
       explanation?: string;
-      metadata?: Record<string, any>;
+      metadata?: Record<string, unknown>;
     },
     user: { sub: string; email: string; role: string; type: string },
-  ): Promise<any> {
+  ): Promise<{ id: string; strategyType: string; transactionId: string }> {
     const transaction = await this.prisma.transaction.findUnique({
       where: { id: transactionId },
       include: { property: { select: { id: true, city: true, state: true, country: true } } },
@@ -530,7 +539,7 @@ export class TransactionsService {
           version: 1,
         },
       })
-      .then((result: any) => {
+      .then((result) => {
         this.logger.log(
           `Tax strategy created for transaction ${transactionId}: ${dto.strategyType}`,
         );
@@ -563,7 +572,7 @@ export class TransactionsService {
       jurisdiction?: string;
     },
     user: { sub: string; email: string; role: string; type: string },
-  ): Promise<any> {
+  ): Promise<{ id: string; strategyType: string; version: number }> {
     const existing = await this.prisma.transactionTaxStrategy.findFirst({
       where: { id: strategyId, transactionId },
     });
@@ -576,7 +585,7 @@ export class TransactionsService {
       data: {
         ...(dto.strategyType && { strategyType: dto.strategyType }),
         ...(dto.jurisdiction && { jurisdiction: dto.jurisdiction }),
-        version: (existing as any).version + 1,
+        version: existing.version + 1,
       },
     });
   }
@@ -584,14 +593,14 @@ export class TransactionsService {
   /**
    * Convert transaction to response DTO
    */
-  async updateEscrow(transactionId: string, dto: any, actorId?: string) {
+  async updateEscrow(transactionId: string, dto: UpdateEscrowDto, actorId?: string) {
     const transaction = await this.prisma.transaction.findUnique({
       where: { id: transactionId },
     });
     if (!transaction) throw new NotFoundException('Transaction not found');
 
     this.logger.log(`Updating escrow for transaction ${transactionId}`);
-    const data: any = {};
+    const data: Record<string, unknown> = {};
     if (dto.escrowStatus !== undefined) data.escrowStatus = dto.escrowStatus;
     if (dto.escrowAmount !== undefined) data.escrowAmount = dto.escrowAmount;
     if (dto.paymentStatus !== undefined) data.paymentStatus = dto.paymentStatus;
@@ -615,19 +624,45 @@ export class TransactionsService {
     return this.toResponseDto(updated);
   }
 
-  private toResponseDto(transaction: any): TransactionResponseDto {
+  private toResponseDto(transaction: {
+    id: string;
+    propertyId: string;
+    buyerId: string;
+    sellerId: string;
+    amount: { toNumber?: () => number } | number;
+    type: string;
+    status: string;
+    blockchainHash?: string | null;
+    contractAddress?: string | null;
+    notes?: string | null;
+    feeBreakdown?: unknown;
+    escrowStatus?: string | null;
+    escrowAmount?: unknown;
+    paymentStatus?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }): TransactionResponseDto {
+    const amount =
+      typeof transaction.amount === 'object' &&
+      transaction.amount !== null &&
+      'toNumber' in transaction.amount &&
+      typeof transaction.amount.toNumber === 'function'
+        ? transaction.amount.toNumber()
+        : (transaction.amount as number);
+
     return {
       id: transaction.id,
       propertyId: transaction.propertyId,
       buyerId: transaction.buyerId,
       sellerId: transaction.sellerId,
-      amount: transaction.amount,
+      amount,
       type: transaction.type as TransactionTypeDto,
       status: transaction.status as TransactionStatusDto,
-      blockchainHash: transaction.blockchainHash,
-      contractAddress: transaction.contractAddress,
-      notes: transaction.notes,
-      feeBreakdown: transaction.feeBreakdown ?? undefined,
+      blockchainHash: transaction.blockchainHash ?? undefined,
+      contractAddress: transaction.contractAddress ?? undefined,
+      notes: transaction.notes ?? undefined,
+      feeBreakdown: transaction.feeBreakdown as
+        import('./dto/transaction.dto').FeeBreakdown | undefined,
       escrowStatus: transaction.escrowStatus ?? undefined,
       escrowAmount: transaction.escrowAmount ?? undefined,
       paymentStatus: transaction.paymentStatus ?? undefined,

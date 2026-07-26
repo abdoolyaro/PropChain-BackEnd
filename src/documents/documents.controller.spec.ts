@@ -28,7 +28,12 @@ describe('DocumentsController', () => {
     bulkDownload: jest.fn(),
   };
 
-  const mockUser: AuthUserPayload = { sub: 'user-1', role: UserRole.USER, email: 'test@test.com', type: 'access' };
+  const mockUser: AuthUserPayload = {
+    sub: 'user-1',
+    role: UserRole.USER,
+    email: 'test@test.com',
+    type: 'access',
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({

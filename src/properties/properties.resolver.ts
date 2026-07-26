@@ -1,4 +1,4 @@
-// @ts-nocheck
+/* eslint-disable @typescript-eslint/no-explicit-any -- TODO #891: eliminate any from this file */
 
 import { Resolver, Query, Mutation, Args, Subscription } from '@nestjs/graphql';
 import { UseGuards, Inject } from '@nestjs/common';

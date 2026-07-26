@@ -27,7 +27,11 @@ export class TransactionNotesService {
 
     const isParty = tx.buyerId === viewerId || tx.sellerId === viewerId;
 
-    const where: any = { transactionId };
+    const where: {
+      transactionId: string;
+      isPublic?: boolean;
+      OR?: Array<{ isPublic?: boolean; authorId?: string }>;
+    } = { transactionId };
     if (!isPrivileged && !isParty) {
       where.isPublic = true;
     } else if (!isPrivileged) {

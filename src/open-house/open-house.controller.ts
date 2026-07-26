@@ -1,4 +1,4 @@
-// @ts-nocheck
+/* eslint-disable @typescript-eslint/no-explicit-any -- TODO #891: eliminate any from this file */
 
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { OpenHouseService } from './open-house.service';

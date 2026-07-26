@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import {
   BadRequestException,
   Injectable,
@@ -53,6 +51,7 @@ type JwtPayload = {
   sub: string;
   email: string;
   role: UserRole;
+  tier: 'free' | 'premium' | 'enterprise';
   type: 'access' | 'refresh';
   jti: string;
   family?: string;
@@ -89,9 +88,34 @@ export class AuthService {
     private readonly rateLimitService: LoginRateLimitService,
     private readonly fraudService: FraudService,
   ) {
-    this.jwtSecret = this.configService.get<string>('JWT_SECRET') ?? 'propchain-access-secret';
-    this.jwtRefreshSecret =
-      this.configService.get<string>('JWT_REFRESH_SECRET') ?? 'propchain-refresh-secret';
+    const jwtSecret = this.configService.get<string>('JWT_SECRET');
+    const jwtRefreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET');
+    const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
+
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET is not configured. Please set it in your environment variables.');
+    }
+    if (!jwtRefreshSecret) {
+      throw new Error(
+        'JWT_REFRESH_SECRET is not configured. Please set it in your environment variables.',
+      );
+    }
+
+    if (isProduction) {
+      if (jwtSecret.length < 32) {
+        throw new Error(
+          'JWT_SECRET is too short. Provide a random string of at least 32 characters (256 bits).',
+        );
+      }
+      if (jwtRefreshSecret.length < 32) {
+        throw new Error(
+          'JWT_REFRESH_SECRET is too short. Provide a random string of at least 32 characters (256 bits).',
+        );
+      }
+    }
+
+    this.jwtSecret = jwtSecret;
+    this.jwtRefreshSecret = jwtRefreshSecret;
     this.accessTokenTtlSeconds = parseDuration(
       this.configService.get<string>('JWT_ACCESS_EXPIRES_IN') ?? '15m',
       15 * 60,
@@ -106,7 +130,15 @@ export class AuthService {
   /**
    * Helper to map transactions to activity items for dashboard
    */
-  private transactionsToActivityItems(transactions: any[], type: 'purchase' | 'sale') {
+  private transactionsToActivityItems(
+    transactions: Array<{
+      id: string;
+      property?: { title?: string } | null;
+      amount: unknown;
+      createdAt: Date;
+    }>,
+    type: 'purchase' | 'sale',
+  ) {
     return transactions.map((tx) => ({
       type: 'transaction' as const,
       id: tx.id,
@@ -466,7 +498,11 @@ export class AuthService {
    * Handle token reuse detection - invalidate entire token family
    */
   private async handleTokenReuse(
-    blacklistedToken: any,
+    blacklistedToken: {
+      ipAddress?: string | null;
+      userAgent?: string | null;
+      tokenFamily?: string | null;
+    },
     reusedJti: string,
     ipAddress?: string,
     userAgent?: string,
@@ -742,13 +778,15 @@ export class AuthService {
     const recentActivity = [
       ...this.transactionsToActivityItems(buyerTransactions, 'purchase'),
       ...this.transactionsToActivityItems(sellerTransactions, 'sale'),
-      ...documents.map((doc: any) => ({
-        type: 'document' as const,
-        id: doc.id,
-        title: doc.fileName,
-        description: `Uploaded ${doc.documentType.toLowerCase().replace('_', ' ')}`,
-        timestamp: doc.createdAt,
-      })),
+      ...documents.map(
+        (doc: { id: string; fileName: string; documentType: string; createdAt: Date }) => ({
+          type: 'document' as const,
+          id: doc.id,
+          title: doc.fileName,
+          description: `Uploaded ${doc.documentType.toLowerCase().replace('_', ' ')}`,
+          timestamp: doc.createdAt,
+        }),
+      ),
     ]
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, 10);
@@ -766,21 +804,37 @@ export class AuthService {
         apiKeysCount: apiKeys.length,
       },
       recentActivity,
-      recommendations: recommendationProperties.map((p: any) => ({
-        id: p.id,
-        title: p.title,
-        address: p.address,
-        city: p.city,
-        state: p.state,
-        price: p.price.toString(),
-        propertyType: p.propertyType,
-        bedrooms: p.bedrooms,
-        bathrooms: p.bathrooms?.toString(),
-        squareFeet: p.squareFeet?.toString(),
-        status: p.status,
-        agent: `${p.owner.firstName} ${p.owner.lastName}`,
-        createdAt: p.createdAt,
-      })),
+      recommendations: recommendationProperties.map(
+        (p: {
+          id: string;
+          title: string;
+          address: string;
+          city: string;
+          state: string;
+          price: { toString: () => string };
+          propertyType: string;
+          bedrooms: number | null;
+          bathrooms: unknown;
+          squareFeet: unknown;
+          status: string;
+          owner: { firstName: string | null; lastName: string | null };
+          createdAt: Date;
+        }) => ({
+          id: p.id,
+          title: p.title,
+          address: p.address,
+          city: p.city,
+          state: p.state,
+          price: p.price.toString(),
+          propertyType: p.propertyType,
+          bedrooms: p.bedrooms,
+          bathrooms: p.bathrooms?.toString(),
+          squareFeet: p.squareFeet?.toString(),
+          status: p.status,
+          agent: `${p.owner.firstName} ${p.owner.lastName}`,
+          createdAt: p.createdAt,
+        }),
+      ),
     };
   }
 
@@ -981,7 +1035,7 @@ export class AuthService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return apiKeys.map((apiKey: any) => this.toApiKeyResponse(apiKey));
+    return apiKeys.map((apiKey) => this.toApiKeyResponse(apiKey));
   }
 
   async rotateApiKey(user: AuthUserPayload, apiKeyId: string) {
@@ -1169,6 +1223,7 @@ export class AuthService {
       sub: payload.sub,
       email: user.email,
       role: user.role,
+      tier: payload.tier ?? 'free',
       type: 'access',
       jti: payload.jti,
     };
@@ -1206,7 +1261,9 @@ export class AuthService {
       sub: apiKey.userId,
       email: apiKey.user.email,
       role: apiKey.user.role as UserRole,
-      type: 'api-key',
+      tier: ((apiKey.user as unknown as { tier?: 'free' | 'premium' | 'enterprise' }).tier ??
+        'free') as 'free' | 'premium' | 'enterprise',
+      type: 'api-key' as const,
       apiKeyId: apiKey.id,
       apiKeyPermissions: apiKey.permissions,
     };
@@ -1227,6 +1284,7 @@ export class AuthService {
         sub: user.id,
         email: user.email,
         role: user.role as UserRole,
+        tier: (user as unknown as { tier?: 'free' | 'premium' | 'enterprise' }).tier ?? 'free',
         type: 'access',
         jti: accessJti,
         family: family,
@@ -1240,6 +1298,7 @@ export class AuthService {
         sub: user.id,
         email: user.email,
         role: user.role as UserRole,
+        tier: (user as unknown as { tier?: 'free' | 'premium' | 'enterprise' }).tier ?? 'free',
         type: 'refresh',
         jti: refreshJti,
         family: family,
@@ -1335,7 +1394,18 @@ export class AuthService {
     return `pc_${randomToken(24)}`;
   }
 
-  private toApiKeyResponse(apiKey: any) {
+  private toApiKeyResponse(apiKey: {
+    id: string;
+    name: string;
+    keyPrefix: string;
+    permissions: string[];
+    usageCount: number;
+    lastUsedAt: Date | null;
+    expiresAt: Date | null;
+    revokedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }) {
     return {
       id: apiKey.id,
       name: apiKey.name,
@@ -1478,7 +1548,7 @@ export class AuthService {
       if (historyEntries.length > 0) {
         await tx.passwordHistory.deleteMany({
           where: {
-            id: { in: historyEntries.map((entry: any) => entry.id) },
+            id: { in: historyEntries.map((entry: { id: string }) => entry.id) },
           },
         });
       }
@@ -1548,7 +1618,7 @@ export class AuthService {
         body: `secret=${secret}&response=${token}`,
       });
 
-      const data = (await response.json()) as any;
+      const data = (await response.json()) as { success: boolean; score?: number };
 
       // reCAPTCHA v3 returns a score between 0.0 and 1.0. Typically, 0.5 is a good threshold.
       if (data.success && data.score !== undefined && data.score >= 0.5) {

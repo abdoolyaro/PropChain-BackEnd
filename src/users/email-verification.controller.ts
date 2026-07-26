@@ -1,4 +1,4 @@
-// @ts-nocheck
+/* eslint-disable @typescript-eslint/no-explicit-any -- TODO #891: eliminate any from this file */
 
 import { Controller, Post, Body, UseGuards } from '@nestjs/common';
 import { EmailVerificationService } from './email-verification.service';

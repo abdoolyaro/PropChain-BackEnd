@@ -1,6 +1,4 @@
-// @ts-nocheck
-
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { ChangeEmailDto } from './dto/email-change.dto';
 import { randomBytes } from 'crypto';
@@ -10,6 +8,8 @@ import { RateLimitService } from '../auth/rate-limit.service';
 
 @Injectable()
 export class EmailVerificationService {
+  private readonly logger = new Logger(EmailVerificationService.name);
+
   constructor(
     private prisma: PrismaService,
     private emailService: EmailService,
@@ -63,9 +63,9 @@ export class EmailVerificationService {
         userId: userId,
         emailType: 'email_verification',
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         // Fail quietly but log
-        console.error('Failed to queue verification email:', err?.message || err);
+        this.logger.error('Failed to queue verification email:', (err as Error)?.message ?? err);
       });
 
     return {
@@ -112,8 +112,8 @@ export class EmailVerificationService {
         userId: userId,
         emailType: 'email_verification',
       })
-      .catch((err) => {
-        console.error('Failed to queue verification email:', err?.message || err);
+      .catch((err: unknown) => {
+        this.logger.error('Failed to queue verification email:', (err as Error)?.message ?? err);
       });
 
     return { message: 'Verification email resent' };

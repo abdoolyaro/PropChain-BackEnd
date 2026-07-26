@@ -1,4 +1,4 @@
-// @ts-nocheck
+/* eslint-disable @typescript-eslint/no-explicit-any -- TODO #891: eliminate any from this file */
 
 import { Controller, Get, Post, Query, Body, UseGuards, Request } from '@nestjs/common';
 import { SearchService, SearchQuery } from './search.service';

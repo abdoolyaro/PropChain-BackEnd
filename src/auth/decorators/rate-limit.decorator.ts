@@ -1,4 +1,4 @@
-// @ts-nocheck
+/* eslint-disable @typescript-eslint/no-explicit-any -- TODO #891: eliminate any from this file */
 
 import { applyDecorators, UseGuards } from '@nestjs/common';
 import { RateLimitGuard, SkipRateLimit, CustomRateLimit } from '../guards/rate-limit.guard';

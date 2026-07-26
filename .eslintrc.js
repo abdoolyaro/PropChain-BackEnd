@@ -19,10 +19,20 @@ module.exports = {
     '@typescript-eslint/interface-name-prefix': 'off',
     '@typescript-eslint/explicit-function-return-type': 'warn',
     '@typescript-eslint/explicit-module-boundary-types': 'warn',
-    '@typescript-eslint/no-explicit-any': 'warn',
+    '@typescript-eslint/no-explicit-any': 'error',
     '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
     '@typescript-eslint/no-namespace': 'off',
     '@typescript-eslint/ban-ts-comment': 'off',
-    'no-console': 'warn',
+    'no-console': 'error',
   },
+  overrides: [
+    {
+      // Test and spec files: relax any and console rules
+      files: ['**/*.spec.ts', '**/*.e2e-spec.ts', 'test/**/*.ts'],
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'warn',
+        'no-console': 'warn',
+      },
+    },
+  ],
 };

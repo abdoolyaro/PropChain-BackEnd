@@ -1,4 +1,4 @@
-// @ts-nocheck
+/* eslint-disable @typescript-eslint/no-explicit-any -- TODO #891: eliminate any from this file */
 
 import { IsString, IsOptional, IsNumber, IsDateString } from 'class-validator';
 import { Type } from 'class-transformer';

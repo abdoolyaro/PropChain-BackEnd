@@ -1,4 +1,4 @@
-// @ts-nocheck
+/* eslint-disable @typescript-eslint/no-explicit-any -- TODO #891: eliminate any from this file */
 
 import { IsString, IsOptional, IsUUID, IsNumber, Min, Max, IsBoolean } from 'class-validator';
 import { Field, InputType, Int } from '@nestjs/graphql';

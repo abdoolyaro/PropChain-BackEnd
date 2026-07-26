@@ -1,4 +1,4 @@
-// @ts-nocheck
+/* eslint-disable @typescript-eslint/no-explicit-any -- TODO #891: eliminate any from this file */
 
 import { Controller, Get, Query, Res, Req, Param } from '@nestjs/common';
 import { Response, Request } from 'express';

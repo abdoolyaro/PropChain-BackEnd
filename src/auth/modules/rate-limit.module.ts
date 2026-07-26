@@ -1,4 +1,4 @@
-// @ts-nocheck
+/* eslint-disable @typescript-eslint/no-explicit-any -- TODO #891: eliminate any from this file */
 
 import { Global, Module } from '@nestjs/common';
 import { RateLimitService } from '../rate-limit.service';
